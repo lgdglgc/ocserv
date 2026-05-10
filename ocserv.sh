@@ -66,18 +66,22 @@ Get_ip(){
 	fi
 }
 Download_ocserv(){
-	mkdir "ocserv" && cd "ocserv"
+	local build_dir
+	build_dir=$(mktemp -d)
+	cd "${build_dir}"
 	wget "https://www.infradead.org/ocserv/download/ocserv-${ocserv_ver}.tar.xz"
-	[[ ! -s "ocserv-${ocserv_ver}.tar.xz" ]] && echo -e "${Error} ocserv 源码文件下载失败 !" && rm -rf "ocserv/" && rm -rf "ocserv-${ocserv_ver}.tar.xz" && exit 1
+	[[ ! -s "ocserv-${ocserv_ver}.tar.xz" ]] && echo -e "${Error} ocserv 源码文件下载失败 !" && rm -rf "${build_dir}" && exit 1
 	tar -xJf "ocserv-${ocserv_ver}.tar.xz" && cd "ocserv-${ocserv_ver}"
 	meson setup build --prefix=/usr/local
+	[[ $? -ne 0 ]] && echo -e "${Error} meson 配置失败，请检查依赖！" && rm -rf "${build_dir}" && exit 1
 	ninja -C build
+	[[ $? -ne 0 ]] && echo -e "${Error} 编译失败，请检查日志！" && rm -rf "${build_dir}" && exit 1
 	ninja -C build install
-	cd .. && cd ..
-	rm -rf ocserv/
-	
+	[[ $? -ne 0 ]] && echo -e "${Error} 安装失败，请检查！" && rm -rf "${build_dir}" && exit 1
+	cd / && rm -rf "${build_dir}"
+
 	if [[ -e ${file} ]]; then
-		mkdir "${conf_file}"
+		mkdir -p "${conf_file}"
 		wget --no-check-certificate -N -P "${conf_file}" "https://raw.githubusercontent.com/lgdglgc/ocserv88/master/other/ocserv.conf"
 		[[ ! -s "${conf}" ]] && echo -e "${Error} ocserv 配置文件下载失败 !" && rm -rf "${conf_file}" && exit 1
 	else
@@ -159,7 +163,7 @@ Generate_SSL(){
 
 	echo -e "${Info} 开始生成本地自签证书..."
 	lalala=$(rand)
-	mkdir /tmp/ssl && cd /tmp/ssl
+	rm -rf /tmp/ssl && mkdir -p /tmp/ssl && cd /tmp/ssl
 	echo -e 'cn = "'${lalala}'"
 organization = "'${lalala}'"
 serial = 1
@@ -192,34 +196,32 @@ tls_www_server' > server.tmpl
 	certtool --generate-certificate --load-privkey server-key.pem --load-ca-certificate ca-cert.pem --load-ca-privkey ca-key.pem --template server.tmpl --outfile server-cert.pem
 	[[ $? != 0 ]] && echo -e "${Error} 生成SSL证书文件失败(server-cert.pem) !" && over
 	
-	mkdir /etc/ocserv/ssl
+	mkdir -p /etc/ocserv/ssl
 	mv ca-cert.pem /etc/ocserv/ssl/ca-cert.pem
 	mv ca-key.pem /etc/ocserv/ssl/ca-key.pem
 	mv server-cert.pem /etc/ocserv/ssl/server-cert.pem
 	mv server-key.pem /etc/ocserv/ssl/server-key.pem
 	cd .. && rm -rf /tmp/ssl/
 }
+# 统一依赖包列表（Debian/Ubuntu 通用）
+DEPS="vim net-tools pkg-config build-essential \
+	libgnutls28-dev libwrap0-dev liblz4-dev libseccomp-dev libreadline-dev \
+	libnl-nf-3-dev libnl-route-3-dev libev-dev gnutls-bin \
+	libpam0g-dev libsystemd-dev meson ninja-build \
+	gperf protobuf-c-compiler libprotobuf-c-dev libtalloc-dev \
+	ipcalc libtasn1-bin libjansson-dev liboath-dev libcurl4-gnutls-dev iptables"
+
 Installation_dependency(){
 	[[ ! -e "/dev/net/tun" ]] && echo -e "${Error} 你的VPS没有开启TUN，请联系IDC或通过VPS控制面板打开TUN/TAP开关 !" && exit 1
 	if [[ ${release} = "centos" ]]; then
 		echo -e "${Error} 本脚本不支持 CentOS 系统 !" && exit 1
-	elif [[ ${release} = "debian" ]]; then
-		cat /etc/issue |grep 9\..*>/dev/null
-		if [[ $? = 0 ]]; then
-			apt-get update
-			apt-get install vim net-tools pkg-config build-essential libgnutls28-dev libwrap0-dev liblz4-dev libseccomp-dev libreadline-dev libnl-nf-3-dev libnl-route-3-dev libev-dev gnutls-bin libpam0g-dev libsystemd-dev meson ninja-build gperf protobuf-c-compiler libprotobuf-c-dev libtalloc-dev ipcalc libtasn1-bin libjansson-dev liboath-dev libcurl4-gnutls-dev -y
-		else
-			mv /etc/apt/sources.list /etc/apt/sources.list.bak
-			wget --no-check-certificate -O "/etc/apt/sources.list" "https://raw.githubusercontent.com/lgdglgc/ocserv88/master/sources/us.sources.list"
-			apt-get update
-			apt-get install vim net-tools pkg-config build-essential libgnutls28-dev libwrap0-dev liblz4-dev libseccomp-dev libreadline-dev libnl-nf-3-dev libnl-route-3-dev libev-dev gnutls-bin libpam0g-dev libsystemd-dev meson ninja-build gperf protobuf-c-compiler libprotobuf-c-dev libtalloc-dev ipcalc libtasn1-bin libjansson-dev liboath-dev libcurl4-gnutls-dev -y
-			rm -rf /etc/apt/sources.list
-			mv /etc/apt/sources.list.bak /etc/apt/sources.list
-			apt-get update
-		fi
-	else
-		apt-get update
-		apt-get install vim net-tools pkg-config build-essential libgnutls28-dev libwrap0-dev liblz4-dev libseccomp-dev libreadline-dev libnl-nf-3-dev libnl-route-3-dev libev-dev gnutls-bin libpam0g-dev libsystemd-dev meson ninja-build gperf protobuf-c-compiler libprotobuf-c-dev libtalloc-dev ipcalc libtasn1-bin libjansson-dev liboath-dev libcurl4-gnutls-dev -y
+	fi
+	echo -e "${Info} 正在更新软件包列表..."
+	apt-get update
+	echo -e "${Info} 正在安装编译依赖（可能需要几分钟）..."
+	apt-get install -y ${DEPS}
+	if [[ $? -ne 0 ]]; then
+		echo -e "${Error} 依赖安装失败，请检查网络或 apt 源配置！" && exit 1
 	fi
 }
 Install_ocserv(){
@@ -247,26 +249,45 @@ Install_ocserv(){
 }
 Start_ocserv(){
 	check_installed_status
-	check_pid
-	[[ ! -z ${PID} ]] && echo -e "${Error} ocserv 正在运行，请检查 !" && exit 1
-	if [[ -f /etc/systemd/system/ocserv.service ]]; then systemctl start ocserv; else /etc/init.d/ocserv start; fi
-	sleep 2s
-	check_pid
-	[[ ! -z ${PID} ]] && View_Config
+	if [[ -f /etc/systemd/system/ocserv.service ]]; then
+		systemctl is-active --quiet ocserv && echo -e "${Error} ocserv 正在运行，请检查 !" && exit 1
+		systemctl start ocserv
+		sleep 2s
+		systemctl is-active --quiet ocserv && View_Config || echo -e "${Error} ocserv 启动失败，请运行: journalctl -u ocserv -n 30"
+	else
+		check_pid
+		[[ ! -z ${PID} ]] && echo -e "${Error} ocserv 正在运行，请检查 !" && exit 1
+		/etc/init.d/ocserv start
+		sleep 2s
+		check_pid
+		[[ ! -z ${PID} ]] && View_Config
+	fi
 }
 Stop_ocserv(){
 	check_installed_status
-	check_pid
-	[[ -z ${PID} ]] && echo -e "${Error} ocserv 没有运行，请检查 !" && exit 1
-	if [[ -f /etc/systemd/system/ocserv.service ]]; then systemctl stop ocserv; else /etc/init.d/ocserv stop; fi
+	if [[ -f /etc/systemd/system/ocserv.service ]]; then
+		systemctl is-active --quiet ocserv || { echo -e "${Error} ocserv 没有运行，请检查 !"; exit 1; }
+		systemctl stop ocserv
+	else
+		check_pid
+		[[ -z ${PID} ]] && echo -e "${Error} ocserv 没有运行，请检查 !" && exit 1
+		/etc/init.d/ocserv stop
+	fi
 }
 Restart_ocserv(){
 	check_installed_status
-	check_pid
-	if [[ -f /etc/systemd/system/ocserv.service ]]; then systemctl restart ocserv; else [[ ! -z ${PID} ]] && /etc/init.d/ocserv stop; /etc/init.d/ocserv start; fi
-	sleep 2s
-	check_pid
-	[[ ! -z ${PID} ]] && View_Config
+	if [[ -f /etc/systemd/system/ocserv.service ]]; then
+		systemctl restart ocserv
+		sleep 2s
+		systemctl is-active --quiet ocserv && View_Config || echo -e "${Error} ocserv 重启失败，请运行: journalctl -u ocserv -n 30"
+	else
+		check_pid
+		[[ ! -z ${PID} ]] && /etc/init.d/ocserv stop
+		/etc/init.d/ocserv start
+		sleep 2s
+		check_pid
+		[[ ! -z ${PID} ]] && View_Config
+	fi
 }
 Set_ocserv(){
 	[[ ! -e ${conf} ]] && echo -e "${Error} ocserv 配置文件不存在 !" && exit 1
@@ -328,7 +349,7 @@ Set_udp_port(){
 	echo $((${set_udp_port}+0)) &>/dev/null
 	if [[ $? -eq 0 ]]; then
 		if [[ ${set_udp_port} -ge 1 ]] && [[ ${set_udp_port} -le 65535 ]]; then
-			echo && echo -e "	TCP端口 : ${Red_font_prefix}${set_udp_port}${Font_color_suffix}" && echo
+			echo && echo -e "	UDP端口 : ${Red_font_prefix}${set_udp_port}${Font_color_suffix}" && echo
 			break
 		else
 			echo -e "${Error} 请输入正确的数字！"
@@ -341,7 +362,7 @@ Set_udp_port(){
 Set_Config(){
 	Set_username
 	Set_passwd
-	echo -e "${userpass}\n${userpass}"|ocpasswd -c ${passwd_file} ${username}
+	printf "%s\n%s\n" "${userpass}" "${userpass}" | ocpasswd -c ${passwd_file} ${username}
 	Set_tcp_port
 	Set_udp_port
 	sed -i 's/tcp-port = '"$(echo ${tcp_port})"'/tcp-port = '"$(echo ${set_tcp_port})"'/g' ${conf}
@@ -381,7 +402,7 @@ Add_User(){
 	Set_passwd
 	user_status=$(grep "^${username}:" "${passwd_file}")
 	[[ ! -z ${user_status} ]] && echo -e "${Error} 用户名已存在 ![ ${username} ]" && exit 1
-	echo -e "${userpass}\n${userpass}"|ocpasswd -c ${passwd_file} ${username}
+	printf "%s\n%s\n" "${userpass}" "${userpass}" | ocpasswd -c ${passwd_file} ${username}
 	user_status=$(grep "^${username}:" "${passwd_file}")
 	if [[ ! -z ${user_status} ]]; then
 		echo -e "${Info} 账号添加成功 ![ ${username} ]"
@@ -471,9 +492,14 @@ View_Config(){
 	echo && echo "==================================================="
 }
 View_Log(){
-	[[ ! -e ${log_file} ]] && echo -e "${Error} ocserv 日志文件不存在 !" && exit 1
-	echo && echo -e "${Tip} 按 ${Red_font_prefix}Ctrl+C${Font_color_suffix} 终止查看日志" && echo -e "如果需要查看完整日志内容，请用 ${Red_font_prefix}cat ${log_file}${Font_color_suffix} 命令。" && echo
-	tail -f ${log_file}
+	if [[ -f /etc/systemd/system/ocserv.service ]]; then
+		echo && echo -e "${Tip} 按 ${Red_font_prefix}Ctrl+C${Font_color_suffix} 终止查看日志" && echo
+		journalctl -u ocserv -f
+	else
+		[[ ! -e ${log_file} ]] && echo -e "${Error} ocserv 日志文件不存在 !" && exit 1
+		echo && echo -e "${Tip} 按 ${Red_font_prefix}Ctrl+C${Font_color_suffix} 终止查看日志" && echo
+		tail -f ${log_file}
+	fi
 }
 Uninstall_ocserv(){
 	check_installed_status "un"
