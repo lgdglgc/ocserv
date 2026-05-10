@@ -126,12 +126,44 @@ rand(){
 	echo $(($num%$max+$min))
 }
 Generate_SSL(){
+	echo -e "${Tip} 是否拥有已经解析到本服务器IP的域名？"
+	echo -e "${Tip} 使用域名可以申请 Let's Encrypt 受信任证书，客户端连接时不再报“不安全”警告。"
+	read -e -p "(有域名输入 Y, 没有直接回车使用自签证书):" has_domain
+	[[ -z "${has_domain}" ]] && has_domain="n"
+
+	if [[ ${has_domain} == [Yy] ]]; then
+		read -e -p "请输入你的域名 (例如 vpn.example.com):" domain
+		if [[ ! -z "${domain}" ]]; then
+			echo -e "${Info} 开始安装依赖 socat 和 acme.sh..."
+			apt-get install -y socat curl
+			curl https://get.acme.sh | sh
+			~/.acme.sh/acme.sh --upgrade --auto-upgrade
+			~/.acme.sh/acme.sh --set-default-ca --server letsencrypt
+			echo -e "${Info} 正在申请证书，请确保 80 端口未被占用且域名已正确解析到本服..."
+			~/.acme.sh/acme.sh --issue -d ${domain} --standalone -k ec-256
+			if [[ $? -eq 0 ]]; then
+				echo -e "${Info} 证书申请成功！开始部署到 ocserv..."
+				mkdir -p /etc/ocserv/ssl
+				~/.acme.sh/acme.sh --installcert -d ${domain} --fullchainpath /etc/ocserv/ssl/server-cert.pem --keypath /etc/ocserv/ssl/server-key.pem --ecc
+				# 对于真实的公网证书，直接注释掉 ocserv.conf 里的 ca-cert 限制
+				sed -i 's/^ca-cert =/#ca-cert =/g' ${conf}
+				echo -e "${Info} 受信任证书配置完成！"
+				return 0
+			else
+				echo -e "${Error} 证书申请失败！自动回退到自签证书模式！"
+			fi
+		else
+			echo -e "${Error} 未输入域名，回退到自签证书模式！"
+		fi
+	fi
+
+	echo -e "${Info} 开始生成本地自签证书..."
 	lalala=$(rand)
 	mkdir /tmp/ssl && cd /tmp/ssl
 	echo -e 'cn = "'${lalala}'"
 organization = "'${lalala}'"
 serial = 1
-expiration_days = 365
+expiration_days = 3650
 ca
 signing_key
 cert_signing_key
@@ -150,7 +182,7 @@ crl_signing_key' > ca.tmpl
 	fi
 	echo -e 'cn = "'${ip}'"
 organization = "'${lalala}'"
-expiration_days = 365
+expiration_days = 3650
 signing_key
 encryption_key
 tls_www_server' > server.tmpl
@@ -217,7 +249,7 @@ Start_ocserv(){
 	check_installed_status
 	check_pid
 	[[ ! -z ${PID} ]] && echo -e "${Error} ocserv 正在运行，请检查 !" && exit 1
-	/etc/init.d/ocserv start
+	if [[ -f /etc/systemd/system/ocserv.service ]]; then systemctl start ocserv; else /etc/init.d/ocserv start; fi
 	sleep 2s
 	check_pid
 	[[ ! -z ${PID} ]] && View_Config
@@ -226,13 +258,12 @@ Stop_ocserv(){
 	check_installed_status
 	check_pid
 	[[ -z ${PID} ]] && echo -e "${Error} ocserv 没有运行，请检查 !" && exit 1
-	/etc/init.d/ocserv stop
+	if [[ -f /etc/systemd/system/ocserv.service ]]; then systemctl stop ocserv; else /etc/init.d/ocserv stop; fi
 }
 Restart_ocserv(){
 	check_installed_status
 	check_pid
-	[[ ! -z ${PID} ]] && /etc/init.d/ocserv stop
-	/etc/init.d/ocserv start
+	if [[ -f /etc/systemd/system/ocserv.service ]]; then systemctl restart ocserv; else [[ ! -z ${PID} ]] && /etc/init.d/ocserv stop; /etc/init.d/ocserv start; fi
 	sleep 2s
 	check_pid
 	[[ ! -z ${PID} ]] && View_Config
@@ -452,11 +483,14 @@ Uninstall_ocserv(){
 	[[ -z ${unyn} ]] && unyn="n"
 	if [[ ${unyn} == [Yy] ]]; then
 		check_pid
-		[[ ! -z $PID ]] && kill -9 ${PID} && rm -f ${PID_FILE}
+		if [[ ! -z $PID ]]; then
+			if [[ -f /etc/systemd/system/ocserv.service ]]; then systemctl stop ocserv; else /etc/init.d/ocserv stop; fi
+			rm -f ${PID_FILE}
+		fi
 		Read_config
 		Del_iptables
 		Save_iptables
-		if systemctl is-enabled ocserv &>/dev/null; then
+		if [[ -f /etc/systemd/system/ocserv.service ]]; then
 			systemctl disable ocserv
 			rm -f /etc/systemd/system/ocserv.service
 			systemctl daemon-reload
@@ -479,7 +513,7 @@ Uninstall_ocserv(){
 	fi
 }
 over(){
-	if systemctl is-enabled ocserv &>/dev/null; then
+	if [[ -f /etc/systemd/system/ocserv.service ]]; then
 		systemctl disable ocserv
 		rm -f /etc/systemd/system/ocserv.service
 		systemctl daemon-reload
@@ -511,8 +545,10 @@ Save_iptables(){
 	iptables-save > /etc/iptables.up.rules
 }
 Set_iptables(){
-	# 防止重复写入 ip_forward
+	# 防止重复写入 ip_forward 并开启 BBR 拥塞控制
 	grep -q "net.ipv4.ip_forward=1" /etc/sysctl.conf || echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf
+	grep -q "net.core.default_qdisc=fq" /etc/sysctl.conf || echo "net.core.default_qdisc=fq" >> /etc/sysctl.conf
+	grep -q "net.ipv4.tcp_congestion_control=bbr" /etc/sysctl.conf || echo "net.ipv4.tcp_congestion_control=bbr" >> /etc/sysctl.conf
 	sysctl -p
 	# 使用 ip route 自动获取默认出口网卡，兼容所有云服务器
 	Network_card=$(ip route get 8.8.8.8 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="dev") {print $(i+1); exit}}')
