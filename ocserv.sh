@@ -325,8 +325,8 @@ Set_tcp_port(){
 	while true
 	do
 	echo -e "请输入VPN服务端的TCP端口"
-	read -e -p "(默认: 443):" set_tcp_port
-	[[ -z "$set_tcp_port" ]] && set_tcp_port="443"
+	read -e -p "(默认: 8443):" set_tcp_port
+	[[ -z "$set_tcp_port" ]] && set_tcp_port="8443"
 	echo $((${set_tcp_port}+0)) &>/dev/null
 	if [[ $? -eq 0 ]]; then
 		if [[ ${set_tcp_port} -ge 1 ]] && [[ ${set_tcp_port} -le 65535 ]]; then
