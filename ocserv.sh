@@ -207,19 +207,19 @@ Installation_dependency(){
 		cat /etc/issue |grep 9\..*>/dev/null
 		if [[ $? = 0 ]]; then
 			apt-get update
-			apt-get install vim net-tools pkg-config build-essential libgnutls28-dev libwrap0-dev liblz4-dev libseccomp-dev libreadline-dev libnl-nf-3-dev libev-dev gnutls-bin libpam0g-dev libsystemd-dev meson ninja-build gperf protobuf-c-compiler libprotobuf-c-dev libtalloc-dev -y
+			apt-get install vim net-tools pkg-config build-essential libgnutls28-dev libwrap0-dev liblz4-dev libseccomp-dev libreadline-dev libnl-nf-3-dev libnl-route-3-dev libev-dev gnutls-bin libpam0g-dev libsystemd-dev meson ninja-build gperf protobuf-c-compiler libprotobuf-c-dev libtalloc-dev ipcalc libtasn1-bin libjansson-dev liboath-dev libcurl4-gnutls-dev -y
 		else
 			mv /etc/apt/sources.list /etc/apt/sources.list.bak
 			wget --no-check-certificate -O "/etc/apt/sources.list" "https://raw.githubusercontent.com/lgdglgc/ocserv88/master/sources/us.sources.list"
 			apt-get update
-			apt-get install vim net-tools pkg-config build-essential libgnutls28-dev libwrap0-dev liblz4-dev libseccomp-dev libreadline-dev libnl-nf-3-dev libev-dev gnutls-bin libpam0g-dev libsystemd-dev meson ninja-build gperf protobuf-c-compiler libprotobuf-c-dev libtalloc-dev -y
+			apt-get install vim net-tools pkg-config build-essential libgnutls28-dev libwrap0-dev liblz4-dev libseccomp-dev libreadline-dev libnl-nf-3-dev libnl-route-3-dev libev-dev gnutls-bin libpam0g-dev libsystemd-dev meson ninja-build gperf protobuf-c-compiler libprotobuf-c-dev libtalloc-dev ipcalc libtasn1-bin libjansson-dev liboath-dev libcurl4-gnutls-dev -y
 			rm -rf /etc/apt/sources.list
 			mv /etc/apt/sources.list.bak /etc/apt/sources.list
 			apt-get update
 		fi
 	else
 		apt-get update
-		apt-get install vim net-tools pkg-config build-essential libgnutls28-dev libwrap0-dev liblz4-dev libseccomp-dev libreadline-dev libnl-nf-3-dev libev-dev gnutls-bin libpam0g-dev libsystemd-dev meson ninja-build gperf protobuf-c-compiler libprotobuf-c-dev libtalloc-dev -y
+		apt-get install vim net-tools pkg-config build-essential libgnutls28-dev libwrap0-dev liblz4-dev libseccomp-dev libreadline-dev libnl-nf-3-dev libnl-route-3-dev libev-dev gnutls-bin libpam0g-dev libsystemd-dev meson ninja-build gperf protobuf-c-compiler libprotobuf-c-dev libtalloc-dev ipcalc libtasn1-bin libjansson-dev liboath-dev libcurl4-gnutls-dev -y
 	fi
 }
 Install_ocserv(){
