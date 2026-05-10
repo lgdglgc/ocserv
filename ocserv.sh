@@ -70,9 +70,9 @@ Download_ocserv(){
 	wget "https://www.infradead.org/ocserv/download/ocserv-${ocserv_ver}.tar.xz"
 	[[ ! -s "ocserv-${ocserv_ver}.tar.xz" ]] && echo -e "${Error} ocserv 源码文件下载失败 !" && rm -rf "ocserv/" && rm -rf "ocserv-${ocserv_ver}.tar.xz" && exit 1
 	tar -xJf "ocserv-${ocserv_ver}.tar.xz" && cd "ocserv-${ocserv_ver}"
-	./configure
-	make -j$(nproc)
-	make install
+	meson setup build --prefix=/usr/local
+	ninja -C build
+	ninja -C build install
 	cd .. && cd ..
 	rm -rf ocserv/
 	
@@ -207,19 +207,19 @@ Installation_dependency(){
 		cat /etc/issue |grep 9\..*>/dev/null
 		if [[ $? = 0 ]]; then
 			apt-get update
-			apt-get install vim net-tools pkg-config build-essential libgnutls28-dev libwrap0-dev liblz4-dev libseccomp-dev libreadline-dev libnl-nf-3-dev libev-dev gnutls-bin libpam0g-dev libsystemd-dev -y
+			apt-get install vim net-tools pkg-config build-essential libgnutls28-dev libwrap0-dev liblz4-dev libseccomp-dev libreadline-dev libnl-nf-3-dev libev-dev gnutls-bin libpam0g-dev libsystemd-dev meson ninja-build -y
 		else
 			mv /etc/apt/sources.list /etc/apt/sources.list.bak
 			wget --no-check-certificate -O "/etc/apt/sources.list" "https://raw.githubusercontent.com/lgdglgc/ocserv88/master/sources/us.sources.list"
 			apt-get update
-			apt-get install vim net-tools pkg-config build-essential libgnutls28-dev libwrap0-dev liblz4-dev libseccomp-dev libreadline-dev libnl-nf-3-dev libev-dev gnutls-bin libpam0g-dev libsystemd-dev -y
+			apt-get install vim net-tools pkg-config build-essential libgnutls28-dev libwrap0-dev liblz4-dev libseccomp-dev libreadline-dev libnl-nf-3-dev libev-dev gnutls-bin libpam0g-dev libsystemd-dev meson ninja-build -y
 			rm -rf /etc/apt/sources.list
 			mv /etc/apt/sources.list.bak /etc/apt/sources.list
 			apt-get update
 		fi
 	else
 		apt-get update
-		apt-get install vim net-tools pkg-config build-essential libgnutls28-dev libwrap0-dev liblz4-dev libseccomp-dev libreadline-dev libnl-nf-3-dev libev-dev gnutls-bin libpam0g-dev libsystemd-dev -y
+		apt-get install vim net-tools pkg-config build-essential libgnutls28-dev libwrap0-dev liblz4-dev libseccomp-dev libreadline-dev libnl-nf-3-dev libev-dev gnutls-bin libpam0g-dev libsystemd-dev meson ninja-build -y
 	fi
 }
 Install_ocserv(){
