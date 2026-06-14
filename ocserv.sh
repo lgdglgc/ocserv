@@ -325,8 +325,8 @@ Set_tcp_port(){
 	while true
 	do
 	echo -e "请输入VPN服务端的TCP端口"
-	read -e -p "(默认: 8443):" set_tcp_port
-	[[ -z "$set_tcp_port" ]] && set_tcp_port="8443"
+	read -e -p "(默认: 443):" set_tcp_port
+	[[ -z "$set_tcp_port" ]] && set_tcp_port="443"
 	echo $((${set_tcp_port}+0)) &>/dev/null
 	if [[ $? -eq 0 ]]; then
 		if [[ ${set_tcp_port} -ge 1 ]] && [[ ${set_tcp_port} -le 65535 ]]; then
@@ -367,6 +367,26 @@ Set_Config(){
 	Set_udp_port
 	sed -i 's/tcp-port = '"$(echo ${tcp_port})"'/tcp-port = '"$(echo ${set_tcp_port})"'/g' ${conf}
 	sed -i 's/udp-port = '"$(echo ${udp_port})"'/udp-port = '"$(echo ${set_udp_port})"'/g' ${conf}
+
+	# 自动生成下发给客户端的服务器列表 (profile.xml)
+	local server_addr="${ip}"
+	# 如果申请了域名证书，尝试从证书提取域名作为下发地址
+	if [[ -f /etc/ocserv/ssl/server-cert.pem ]]; then
+		local maybe_domain=$(openssl x509 -in /etc/ocserv/ssl/server-cert.pem -noout -text 2>/dev/null | grep DNS: | sed -n 's/.*DNS:\([^,]*\).*/\1/p' | head -1)
+		[[ ! -z "${maybe_domain}" ]] && server_addr="${maybe_domain}"
+	fi
+	
+	cat > /etc/ocserv/profile.xml <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<AnyConnectProfile xmlns="http://schemas.xmlsoap.org/encoding/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://schemas.xmlsoap.org/encoding/ AnyConnectProfile.xsd">
+    <ServerList>
+        <HostEntry>
+            <HostName>默认优质节点</HostName>
+            <HostAddress>\${server_addr}:\${set_tcp_port}</HostAddress>
+        </HostEntry>
+    </ServerList>
+</AnyConnectProfile>
+EOF
 }
 Read_config(){
 	[[ ! -e ${conf} ]] && echo -e "${Error} ocserv 配置文件不存在 !" && exit 1
@@ -488,7 +508,11 @@ View_Config(){
 	echo -e " UDP端口\t  : ${Green_font_prefix}${udp_port}${Font_color_suffix}"
 	echo -e " 单用户设备数限制 : ${Green_font_prefix}${max_same_clients}${Font_color_suffix}"
 	echo -e " 总用户设备数限制 : ${Green_font_prefix}${max_clients}${Font_color_suffix}"
-	echo -e "\n 客户端链接请填写 : ${Green_font_prefix}${ip}:${tcp_port}${Font_color_suffix}"
+	if [[ "${tcp_port}" == "443" ]]; then
+		echo -e "\n 客户端链接请填写 : ${Green_font_prefix}你的域名${Font_color_suffix} (使用域名可防弹窗，如未绑定域名请填 ${ip})"
+	else
+		echo -e "\n 客户端链接请填写 : ${Green_font_prefix}你的域名:${tcp_port}${Font_color_suffix} (或 ${ip}:${tcp_port})"
+	fi
 	echo && echo "==================================================="
 }
 View_Log(){
