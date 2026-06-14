@@ -34,7 +34,7 @@
 在终端中以 `root` 用户运行以下命令：
 
 ```bash
-wget -N --no-check-certificate https://raw.githubusercontent.com/lgdglgc/ocserv88/master/ocserv.sh && chmod +x ocserv.sh && bash ocserv.sh
+wget -N --no-check-certificate https://raw.githubusercontent.com/lgdglgc/ocserv/master/ocserv.sh && chmod +x ocserv.sh && bash ocserv.sh
 ```
 
 > **提示**：安装完成后，以后只需在终端输入 `bash ocserv.sh` 或 `./ocserv.sh` 即可随时唤出管理菜单，管理账号或修改配置。
