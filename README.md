@@ -2,6 +2,11 @@
 
 基于逗比大神的原始脚本进行二次深度重构与现代化性能升级，专为现代 Linux 发行版及高要求网络环境优化。旨在提供一键式、高稳定性、极速无弹窗的 Cisco AnyConnect VPN 服务端部署方案。
 
+> 💬 **技术支持微信**：lgdglgc  
+> 🛒 **淘宝店铺**：喀秋莎电玩
+
+怀念大神！！！
+
 ---
 
 ## 🌟 核心特性与性能榨取
@@ -14,7 +19,7 @@
   2. **开启 UDP (DTLS) 传输**：AnyConnect 原生支持，摒弃臃肿的 TCP，使用 UDP 传输数据，彻底解决网络拥堵时的“队头阻塞”，打游戏延迟更低。
   3. **开启 MTU 自动发现与无损传输**：动态适配最大传输单元，并去除了冗余的流量压缩（现代流量已加密压缩），大幅降低服务器和设备的 CPU 消耗，提升极致网速。
 - **📱 智能下发服务器列表**：全自动构建 `profile.xml`。客户端首次成功连接后，会自动将当前节点保存到客户端列表中，下次连接一键直达，告别繁琐的手动输入。
-- **🌏 智能国内外分流 (Split Routing)**：内置庞大的国内 IP 路由表。连上 VPN 后，访问国内网站直接走本地网络，只有访问国外才走 VPN。省时、省流、省心！
+- **🌏 100% 纯全局代理接管**：默认开启全局路由（`route = default`），去除所有国内分流白名单。连上 VPN 后，所有设备的全部流量（含国内 APP 如富途牛牛、微信等）强制通过 VPN 隧道转发，无死角伪装海外 IP！
 - **🔧 交互式智能控制台**：支持一键安装、卸载、启动、停止、添加/删除/禁用用户等快捷操作。
 
 ---
@@ -34,7 +39,7 @@
 在终端中以 `root` 用户运行以下命令：
 
 ```bash
-wget -N --no-check-certificate https://raw.githubusercontent.com/lgdglgc/ocserv/master/ocserv.sh && chmod +x ocserv.sh && bash ocserv.sh
+wget -N --no-check-certificate https://raw.githubusercontent.com/lgdglgc/ocserv88/master/ocserv.sh && chmod +x ocserv.sh && bash ocserv.sh
 ```
 
 > **提示**：安装完成后，以后只需在终端输入 `bash ocserv.sh` 或 `./ocserv.sh` 即可随时唤出管理菜单，管理账号或修改配置。
