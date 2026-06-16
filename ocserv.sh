@@ -138,15 +138,15 @@ Generate_SSL(){
 	if [[ ${has_domain} == [Yy] ]]; then
 		read -e -p "请输入你的域名 (例如 vpn.example.com):" domain
 		if [[ ! -z "${domain}" ]]; then
-			echo -e "${Info} 开始安装依赖 socat 和 acme.sh..."
-			apt-get install -y socat curl
+			echo -e "${Info} 开始配置安装 acme.sh..."
 			curl https://get.acme.sh | sh
 			~/.acme.sh/acme.sh --upgrade --auto-upgrade
 			~/.acme.sh/acme.sh --set-default-ca --server letsencrypt
 			echo -e "${Info} 正在申请证书，请确保 80 端口未被占用且域名已正确解析到本服..."
 			~/.acme.sh/acme.sh --issue -d ${domain} --standalone -k ec-256
-			if [[ $? -eq 0 ]]; then
-				echo -e "${Info} 证书申请成功！开始部署到 ocserv..."
+			local acme_status=$?
+			if [[ ${acme_status} -eq 0 ]] || [[ ${acme_status} -eq 2 ]]; then
+				echo -e "${Info} 证书申请成功（或已存在有效证书）！开始部署到 ocserv..."
 				mkdir -p /etc/ocserv/ssl
 				~/.acme.sh/acme.sh --installcert -d ${domain} --fullchainpath /etc/ocserv/ssl/server-cert.pem --keypath /etc/ocserv/ssl/server-key.pem --ecc
 				# 对于真实的公网证书，直接注释掉 ocserv.conf 里的 ca-cert 限制
@@ -204,7 +204,7 @@ tls_www_server' > server.tmpl
 	cd .. && rm -rf /tmp/ssl/
 }
 # 统一依赖包列表（Debian/Ubuntu 通用）
-DEPS="vim net-tools pkg-config build-essential \
+DEPS="wget curl tar xz-utils socat openssl vim net-tools pkg-config build-essential cron \
 	libgnutls28-dev libwrap0-dev liblz4-dev libseccomp-dev libreadline-dev \
 	libnl-nf-3-dev libnl-route-3-dev libev-dev gnutls-bin \
 	libpam0g-dev libsystemd-dev meson ninja-build \
@@ -216,13 +216,31 @@ Installation_dependency(){
 	if [[ ${release} = "centos" ]]; then
 		echo -e "${Error} 本脚本不支持 CentOS 系统 !" && exit 1
 	fi
-	echo -e "${Info} 正在更新软件包列表..."
-	apt-get update
-	echo -e "${Info} 正在安装编译依赖（可能需要几分钟）..."
-	apt-get install -y ${DEPS}
-	if [[ $? -ne 0 ]]; then
-		echo -e "${Error} 依赖安装失败，请检查网络或 apt 源配置！" && exit 1
+
+	echo -e "${Info} 正在检测系统缺失的必要依赖..."
+	local missing_deps=""
+	for dep in ${DEPS}; do
+		if ! dpkg -s "${dep}" >/dev/null 2>&1; then
+			missing_deps="${missing_deps} ${dep}"
+		fi
+	done
+
+	if [[ -n "${missing_deps}" ]]; then
+		echo -e "${Info} 发现缺失的依赖: ${missing_deps}"
+		echo -e "${Info} 正在更新软件包列表..."
+		apt-get update -y
+		echo -e "${Info} 正在安装缺失依赖（可能需要几分钟）..."
+		apt-get install -y ${missing_deps}
+		if [[ $? -ne 0 ]]; then
+			echo -e "${Error} 依赖安装失败，请检查网络或 apt 源配置！" && exit 1
+		fi
+	else
+		echo -e "${Info} 所有系统必要依赖均已安装，跳过下载阶段。"
 	fi
+
+	echo -e "${Info} 正在配置并启动 cron 定时任务服务（用于证书自动续期）..."
+	systemctl start cron 2>/dev/null || /etc/init.d/cron start 2>/dev/null
+	systemctl enable cron 2>/dev/null || update-rc.d cron defaults 2>/dev/null
 }
 Install_ocserv(){
 	check_root
@@ -527,29 +545,38 @@ View_Log(){
 }
 Uninstall_ocserv(){
 	check_installed_status "un"
-	echo "确定要卸载 ocserv ? (y/N)"
+	echo "确定要彻底卸载 ocserv 吗 ? (y/N)"
 	echo
 	read -e -p "(默认: n):" unyn
 	[[ -z ${unyn} ]] && unyn="n"
 	if [[ ${unyn} == [Yy] ]]; then
 		check_pid
 		if [[ ! -z $PID ]]; then
-			if [[ -f /etc/systemd/system/ocserv.service ]]; then systemctl stop ocserv; else /etc/init.d/ocserv stop; fi
+			if [[ -f /etc/systemd/system/ocserv.service ]]; then systemctl stop ocserv 2>/dev/null; else /etc/init.d/ocserv stop 2>/dev/null; fi
 			rm -f ${PID_FILE}
 		fi
-		Read_config
-		Del_iptables
-		Save_iptables
+		
+		# 清理防火墙端口放行规则 (兼容配置文件丢失的容错)
+		if [[ -e ${conf} ]]; then
+			tcp_port=$(cat ${conf}|grep "tcp-port ="|awk -F ' = ' '{print $NF}')
+			udp_port=$(cat ${conf}|grep "udp-port ="|awk -F ' = ' '{print $NF}')
+			[[ -n "${tcp_port}" ]] && iptables -D INPUT -m state --state NEW -m tcp -p tcp --dport ${tcp_port} -j ACCEPT 2>/dev/null
+			[[ -n "${udp_port}" ]] && iptables -D INPUT -m state --state NEW -m udp -p udp --dport ${udp_port} -j ACCEPT 2>/dev/null
+			Save_iptables
+		fi
+
 		if [[ -f /etc/systemd/system/ocserv.service ]]; then
-			systemctl disable ocserv
+			systemctl disable ocserv 2>/dev/null
 			rm -f /etc/systemd/system/ocserv.service
 			systemctl daemon-reload
 		else
 			update-rc.d -f ocserv remove 2>/dev/null
 			rm -rf /etc/init.d/ocserv
 		fi
-		rm -rf "${conf_file}"
-		rm -rf "${log_file}"
+		
+		# 彻底清理所有文件和配置
+		rm -rf /etc/ocserv
+		rm -rf /tmp/ocserv.log
 		rm -f /usr/local/bin/occtl
 		rm -f /usr/local/bin/ocpasswd
 		rm -f /usr/local/bin/ocserv-fw
@@ -557,22 +584,29 @@ Uninstall_ocserv(){
 		rm -f /usr/local/share/man/man8/ocserv.8
 		rm -f /usr/local/share/man/man8/ocpasswd.8
 		rm -f /usr/local/share/man/man8/occtl.8
-		echo && echo "ocserv 卸载完成 !" && echo
+		
+		# 清理系统级网络优化脚本和配置
+		rm -f /etc/sysctl.d/99-vpn-optimize.conf
+		rm -f /etc/network/if-pre-up.d/iptables
+		sysctl --system >/dev/null 2>&1
+		
+		echo && echo "ocserv 及其所有配置残留已彻底清理完成 !" && echo
 	else
 		echo && echo "卸载已取消..." && echo
 	fi
 }
 over(){
 	if [[ -f /etc/systemd/system/ocserv.service ]]; then
-		systemctl disable ocserv
+		systemctl disable ocserv 2>/dev/null
 		rm -f /etc/systemd/system/ocserv.service
 		systemctl daemon-reload
 	else
 		update-rc.d -f ocserv remove 2>/dev/null
 		rm -rf /etc/init.d/ocserv
 	fi
-	rm -rf "${conf_file}"
-	rm -rf "${log_file}"
+	
+	rm -rf /etc/ocserv
+	rm -rf /tmp/ocserv.log
 	rm -f /usr/local/bin/occtl
 	rm -f /usr/local/bin/ocpasswd
 	rm -f /usr/local/bin/ocserv-fw
@@ -580,7 +614,12 @@ over(){
 	rm -f /usr/local/share/man/man8/ocserv.8
 	rm -f /usr/local/share/man/man8/ocpasswd.8
 	rm -f /usr/local/share/man/man8/occtl.8
-	echo && echo "安装过程错误，ocserv 卸载完成 !" && echo
+	
+	rm -f /etc/sysctl.d/99-vpn-optimize.conf
+	rm -f /etc/network/if-pre-up.d/iptables
+	sysctl --system >/dev/null 2>&1
+	
+	echo && echo "安装过程错误，已回滚并完全清理残留 !" && echo
 	exit 1
 }
 Add_iptables(){
@@ -595,11 +634,31 @@ Save_iptables(){
 	iptables-save > /etc/iptables.up.rules
 }
 Set_iptables(){
-	# 防止重复写入 ip_forward 并开启 BBR 拥塞控制
-	grep -q "net.ipv4.ip_forward=1" /etc/sysctl.conf || echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf
-	grep -q "net.core.default_qdisc=fq" /etc/sysctl.conf || echo "net.core.default_qdisc=fq" >> /etc/sysctl.conf
-	grep -q "net.ipv4.tcp_congestion_control=bbr" /etc/sysctl.conf || echo "net.ipv4.tcp_congestion_control=bbr" >> /etc/sysctl.conf
-	sysctl -p
+	# 系统网络极限优化与 BBR 拥塞控制
+	echo -e "${Info} 正在写入内核网络极致优化参数..."
+	mkdir -p /etc/sysctl.d
+	cat > /etc/sysctl.d/99-vpn-optimize.conf << EOF
+# ==== VPN Network Optimization ====
+net.ipv4.ip_forward = 1
+net.core.default_qdisc = fq
+net.ipv4.tcp_congestion_control = bbr
+fs.file-max = 1000000
+fs.inotify.max_user_instances = 8192
+net.ipv4.tcp_tw_reuse = 1
+net.ipv4.ip_local_port_range = 1024 65535
+net.ipv4.tcp_rmem = 16384 262144 8388608
+net.ipv4.tcp_wmem = 32768 524288 16777216
+net.core.somaxconn = 8192
+net.core.rmem_max = 16777216
+net.core.wmem_max = 16777216
+net.core.wmem_default = 2097152
+net.ipv4.tcp_max_tw_buckets = 5000
+net.ipv4.tcp_max_syn_backlog = 10240
+net.core.netdev_max_backlog = 10240
+net.ipv4.tcp_slow_start_after_idle = 0
+# ==================================
+EOF
+	sysctl --system >/dev/null 2>&1
 	# 使用 ip route 自动获取默认出口网卡，兼容所有云服务器
 	Network_card=$(ip route get 8.8.8.8 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="dev") {print $(i+1); exit}}')
 	if [[ -z "${Network_card}" ]]; then
