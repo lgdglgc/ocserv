@@ -2,6 +2,7 @@
 
 基于现代 Linux 发行版深度重构与升级的高性能 Cisco AnyConnect VPN 服务端一键部署方案。
 **专为对网络有极高要求、需要 100% 隐藏国内 IP 轨迹的用户打造（如跨国金融交易、严格风控业务环境）。**
+
 ---
 
 ## 🌟 核心特性与性能榨取
@@ -34,7 +35,7 @@
 在终端中以 `root` 用户运行以下命令：
 
 ```bash
-wget -O ocserv.sh --no-check-certificate "https://raw.githubusercontent.com/lgdglgc/ocserv/master/ocserv.sh?t=$(date +%s)" && chmod +x ocserv.sh && bash ocserv.sh
+wget -N --no-check-certificate https://raw.githubusercontent.com/lgdglgc/ocserv/master/ocserv.sh && chmod +x ocserv.sh && bash ocserv.sh
 ```
 
 *(安装完成后，以后只需在终端输入 `bash ocserv.sh` 即可随时唤出图形化管理菜单，进行重启、卸载、增删账号等操作)*
