@@ -82,7 +82,8 @@ Download_ocserv(){
 
 	if [[ -e ${file} ]]; then
 		mkdir -p "${conf_file}"
-		wget --no-check-certificate -N -P "${conf_file}" "https://raw.githubusercontent.com/lgdglgc/ocserv88/master/other/ocserv.conf"
+		# 添加时间戳绕过 GitHub 的 CDN 缓存
+		wget --no-check-certificate -O "${conf}" "https://raw.githubusercontent.com/lgdglgc/ocserv/master/other/ocserv.conf?t=$(date +%s)"
 		[[ ! -s "${conf}" ]] && echo -e "${Error} ocserv 配置文件下载失败 !" && rm -rf "${conf_file}" && exit 1
 	else
 		echo -e "${Error} ocserv 编译安装失败，请检查！" && exit 1
@@ -115,7 +116,7 @@ EOF
 		echo -e "${Info} ocserv systemd 服务已配置并设置开机自启 !"
 	else
 		# 降级使用 SysV init
-		if ! wget --no-check-certificate https://raw.githubusercontent.com/lgdglgc/ocserv88/master/service/ocserv_debian -O /etc/init.d/ocserv; then
+		if ! wget --no-check-certificate "https://raw.githubusercontent.com/lgdglgc/ocserv/master/service/ocserv_debian?t=$(date +%s)" -O /etc/init.d/ocserv; then
 			echo -e "${Error} ocserv 服务 管理脚本下载失败 !" && over
 		fi
 		chmod +x /etc/init.d/ocserv
@@ -676,7 +677,7 @@ EOF
 	chmod +x /etc/network/if-pre-up.d/iptables
 }
 Update_Shell(){
-	sh_new_ver=$(wget --no-check-certificate -qO- -t1 -T3 "https://raw.githubusercontent.com/lgdglgc/ocserv88/master/ocserv.sh"|grep 'sh_ver="'|awk -F "=" '{print $NF}'|sed 's/\"//g'|head -1)
+	sh_new_ver=$(wget --no-check-certificate -qO- -t1 -T3 "https://raw.githubusercontent.com/lgdglgc/ocserv/master/ocserv.sh?t=$(date +%s)"|grep 'sh_ver="'|awk -F "=" '{print $NF}'|sed 's/\"//g'|head -1)
 	[[ -z ${sh_new_ver} ]] && echo -e "${Error} 无法链接到 Github !" && exit 0
 	if [[ "${sh_new_ver}" == "${sh_ver}" ]]; then
 		echo -e "${Info} 当前已是最新版本 [v${sh_ver}]，无需更新。" && exit 0
@@ -686,7 +687,7 @@ Update_Shell(){
 		rm -rf /etc/init.d/ocserv
 		Service_ocserv
 	fi
-	wget -N --no-check-certificate "https://raw.githubusercontent.com/lgdglgc/ocserv88/master/ocserv.sh" && chmod +x ocserv.sh
+	wget -O ocserv.sh --no-check-certificate "https://raw.githubusercontent.com/lgdglgc/ocserv/master/ocserv.sh?t=$(date +%s)" && chmod +x ocserv.sh
 	echo -e "脚本已更新为最新版本 [v${sh_new_ver}]！" && exit 0
 }
 check_sys
