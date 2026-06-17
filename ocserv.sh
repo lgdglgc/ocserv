@@ -6,7 +6,7 @@ export PATH
 #	Description: ocserv AnyConnect
 #	Version: 1.4.2
 #	Author: SheepKeeperS
-#	Blog: 88888888888888888888888
+#	Blog: blog.kqsdw.com
 #=================================================
 sh_ver="1.4.2"
 file="/usr/local/sbin/ocserv"
@@ -400,7 +400,7 @@ Set_Config(){
 <AnyConnectProfile xmlns="http://schemas.xmlsoap.org/encoding/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://schemas.xmlsoap.org/encoding/ AnyConnectProfile.xsd">
     <ServerList>
         <HostEntry>
-            <HostName>默认优质节点</HostName>
+            <HostName>${server_addr}</HostName>
             <HostAddress>\${server_addr}:\${set_tcp_port}</HostAddress>
         </HostEntry>
     </ServerList>
