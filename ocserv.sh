@@ -84,6 +84,7 @@ Download_ocserv(){
 		mkdir -p "${conf_file}"
 		# 添加时间戳绕过 GitHub 的 CDN 缓存
 		wget --no-check-certificate -O "${conf}" "https://raw.githubusercontent.com/lgdglgc/ocserv/master/other/ocserv.conf?t=$(date +%s)"
+		wget --no-check-certificate -O "/etc/ocserv/cn_routes.txt" "https://raw.githubusercontent.com/lgdglgc/ocserv88/master/other/cn_routes.txt?t=$(date +%s)"
 		[[ ! -s "${conf}" ]] && echo -e "${Error} ocserv 配置文件下载失败 !" && rm -rf "${conf_file}" && exit 1
 	else
 		echo -e "${Error} ocserv 编译安装失败，请检查！" && exit 1
@@ -401,7 +402,7 @@ Set_Config(){
     <ServerList>
         <HostEntry>
             <HostName>${server_addr}</HostName>
-            <HostAddress>\${server_addr}:\${set_tcp_port}</HostAddress>
+            <HostAddress>${server_addr}:${set_tcp_port}</HostAddress>
         </HostEntry>
     </ServerList>
 </AnyConnectProfile>
@@ -690,6 +691,54 @@ Update_Shell(){
 	wget -O ocserv.sh --no-check-certificate "https://raw.githubusercontent.com/lgdglgc/ocserv/master/ocserv.sh?t=$(date +%s)" && chmod +x ocserv.sh
 	echo -e "脚本已更新为最新版本 [v${sh_new_ver}]！" && exit 0
 }
+Toggle_Route(){
+	check_installed_status
+	[[ ! -e ${conf} ]] && echo -e "${Error} ocserv 配置文件不存在 !" && exit 1
+	
+	current_route=""
+	if grep -q "route = default" "${conf}"; then
+		current_route="全局代理"
+	elif grep -q "no-route =" "${conf}"; then
+		current_route="国内直连分流"
+	else
+		current_route="未知状态 (未识别到路由规则)"
+	fi
+
+	echo && echo -e " 当前路由模式为: ${Green_font_prefix}${current_route}${Font_color_suffix}
+
+ 你要切换到哪种模式？
+ 
+ ${Green_font_prefix} 1.${Font_color_suffix} 全局代理 (所有流量走 VPN)
+ ${Green_font_prefix} 2.${Font_color_suffix} 国内直连 (访问国内网站不走 VPN)" && echo
+	read -e -p "(默认: 取消):" route_num
+	[[ -z "${route_num}" ]] && echo "已取消..." && exit 1
+	
+	if [[ ${route_num} == "1" ]]; then
+		echo -e "${Info} 正在切换为 全局代理 模式..."
+		sed -i '/^no-route/d' "${conf}"
+		sed -i '/^route =/d' "${conf}"
+		echo "route = default" >> "${conf}"
+		echo -e "${Info} 切换成功！正在重启 ocserv 生效..."
+		Restart_ocserv
+	elif [[ ${route_num} == "2" ]]; then
+		echo -e "${Info} 正在切换为 国内直连 模式..."
+		if [[ ! -f /etc/ocserv/cn_routes.txt ]]; then
+			echo -e "${Error} 找不到分流规则文件 (/etc/ocserv/cn_routes.txt)，正在尝试下载..."
+			wget --no-check-certificate -O "/etc/ocserv/cn_routes.txt" "https://raw.githubusercontent.com/lgdglgc/ocserv88/master/other/cn_routes.txt?t=$(date +%s)"
+		fi
+		if [[ ! -s /etc/ocserv/cn_routes.txt ]]; then
+			echo -e "${Error} 下载或读取 cn_routes.txt 失败！无法切换到分流模式！"
+			exit 1
+		fi
+		sed -i '/^no-route/d' "${conf}"
+		sed -i '/^route =/d' "${conf}"
+		cat /etc/ocserv/cn_routes.txt >> "${conf}"
+		echo -e "${Info} 切换成功！正在重启 ocserv 生效..."
+		Restart_ocserv
+	else
+		echo -e "${Error} 请输入正确的数字[1-2]" && exit 1
+	fi
+}
 check_sys
 [[ ${release} != "debian" ]] && [[ ${release} != "ubuntu" ]] && echo -e "${Error} 本脚本不支持当前系统 ${release} !" && exit 1
 echo && echo -e " ocserv 一键安装管理脚本 ${Red_font_prefix}[v${sh_ver}]${Font_color_suffix}
@@ -708,6 +757,7 @@ echo && echo -e " ocserv 一键安装管理脚本 ${Red_font_prefix}[v${sh_ver}]
  ${Green_font_prefix}7.${Font_color_suffix} 查看 配置信息
  ${Green_font_prefix}8.${Font_color_suffix} 修改 配置文件
  ${Green_font_prefix}9.${Font_color_suffix} 查看 日志信息
+ ${Green_font_prefix}10.${Font_color_suffix} 切换 路由模式
 ————————————" && echo
 if [[ -e ${file} ]]; then
 	check_pid
@@ -720,7 +770,7 @@ else
 	echo -e " 当前状态: ${Red_font_prefix}未安装${Font_color_suffix}"
 fi
 echo
-read -e -p " 请输入数字 [0-9]:" num
+read -e -p " 请输入数字 [0-10]:" num
 case "$num" in
 	0)
 	Update_Shell
@@ -752,7 +802,10 @@ case "$num" in
 	9)
 	View_Log
 	;;
+	10)
+	Toggle_Route
+	;;
 	*)
-	echo "请输入正确数字 [0-9]"
+	echo "请输入正确数字 [0-10]"
 	;;
 esac 
