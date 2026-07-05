@@ -387,26 +387,6 @@ Set_Config(){
 	Set_udp_port
 	sed -i 's/tcp-port = '"$(echo ${tcp_port})"'/tcp-port = '"$(echo ${set_tcp_port})"'/g' ${conf}
 	sed -i 's/udp-port = '"$(echo ${udp_port})"'/udp-port = '"$(echo ${set_udp_port})"'/g' ${conf}
-
-	# 自动生成下发给客户端的服务器列表 (profile.xml)
-	local server_addr="${ip}"
-	# 如果申请了域名证书，尝试从证书提取域名作为下发地址
-	if [[ -f /etc/ocserv/ssl/server-cert.pem ]]; then
-		local maybe_domain=$(openssl x509 -in /etc/ocserv/ssl/server-cert.pem -noout -text 2>/dev/null | grep DNS: | sed -n 's/.*DNS:\([^,]*\).*/\1/p' | head -1)
-		[[ ! -z "${maybe_domain}" ]] && server_addr="${maybe_domain}"
-	fi
-	
-	cat > /etc/ocserv/profile.xml <<EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<AnyConnectProfile xmlns="http://schemas.xmlsoap.org/encoding/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://schemas.xmlsoap.org/encoding/ AnyConnectProfile.xsd">
-    <ServerList>
-        <HostEntry>
-            <HostName>${server_addr}</HostName>
-            <HostAddress>${server_addr}:${set_tcp_port}</HostAddress>
-        </HostEntry>
-    </ServerList>
-</AnyConnectProfile>
-EOF
 }
 Read_config(){
 	[[ ! -e ${conf} ]] && echo -e "${Error} ocserv 配置文件不存在 !" && exit 1

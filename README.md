@@ -20,7 +20,6 @@
 3. **定制化专属品牌 UI 接入**
    - 客户端连接成功后展示独特的定制化欢迎横幅 (Banner)：  
      `🌟 欢迎使用 Cisco AnyConnect 🌟 | 微信客服：lgdglgc89 | 淘宝店铺：喀秋莎电玩`
-   - 全自动下发 `profile.xml` 客户端节点列表，客户端可以直接看到预设的节点列表（包含域名或公网 IP），直观可视。
 
 4. **原生功能全覆盖**
    - 自动拉取源码编译、部署。
@@ -104,7 +103,7 @@ wget -N --no-check-certificate https://raw.githubusercontent.com/lgdglgc/ocserv/
 2.  **添加连接**：打开您的 AnyConnect 或 OpenConnect 客户端，点击“添加新连接 (Add New VPN Connection)”。
 3.  **输入地址**：在服务器地址栏填入刚才获取的地址。
 4.  **证书信任（核心体验优势）**：如果您在安装时绑定了**域名**，本脚本会自动为您申请并续签全球受信任的 Let's Encrypt 证书！客户端连接时**绝对不会弹出任何刺眼的红色不可信警告，实现企业级丝滑秒连**！*(注：仅当您无域名被迫生成自签证书时，才需手动点击 Details -> Import 信任警告)*。
-5.  **输入密码**：随后客户端会自动拉取定制的 `profile.xml` 和 `Banner` 横幅。此时输入您在脚本中设置的**账号**和**密码**。
+5.  **输入密码**：随后客户端会自动拉取定制的 `Banner` 横幅。此时输入您在脚本中设置的**账号**和**密码**。
 6.  **连接成功**：成功后即可看到专属的商家欢迎语，尽情享受百万级并发引擎带来的极致网络体验！
 
 ### 💡 避坑排错指南
@@ -117,6 +116,53 @@ wget -N --no-check-certificate https://raw.githubusercontent.com/lgdglgc/ocserv/
 **2. 连接时提示 `DTLS handshake failed` 并且网速很慢？**
 *   **原因**：这说明 UDP 隧道建立失败，VPN 被迫降级使用缓慢的 TCP 传输，严重影响视频和游戏体验。
 *   **解决**：99% 是因为你的云服务器控制台（如阿里云、腾讯云的安全组）只放行了 TCP 的端口，漏放了同等数字的 **UDP** 端口（默认443）。请务必前往服务器网页控制台手动双向放行 UDP。
+
+## 🛠️ 高级进阶：如何启用客户端节点列表下发 (profile.xml)
+
+默认情况下，本脚本移除了 `profile.xml` 自动下发功能，客户端连接后需手动添加服务器地址。如果您有多台 VPN 服务器，并希望客户端在首次连接后能**自动拉取并保存所有服务器的节点列表**，可以按照以下步骤手动配置：
+
+### 1. 创建节点列表配置文件
+在您的各台 VPN 服务器上创建并编辑 `/etc/ocserv/profile.xml`：
+```bash
+nano /etc/ocserv/profile.xml
+```
+填入以下模板内容（可根据需要添加多个 `<HostEntry>` 节点，将您**所有的服务器均添加进去**）：
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<AnyConnectProfile xmlns="http://schemas.xmlsoap.org/encoding/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://schemas.xmlsoap.org/encoding/ AnyConnectProfile.xsd">
+    <ServerList>
+        <HostEntry>
+            <HostName>香港主服务器</HostName>
+            <HostAddress>hk.example.com:443</HostAddress>
+        </HostEntry>
+        <HostEntry>
+            <HostName>日本备用服务器</HostName>
+            <HostAddress>jp.example.com:443</HostAddress>
+        </HostEntry>
+        <HostEntry>
+            <HostName>美国中转服务器</HostName>
+            <HostAddress>us.example.com:443</HostAddress>
+        </HostEntry>
+    </ServerList>
+</AnyConnectProfile>
+```
+
+### 2. 在 ocserv 配置文件中启用下发
+编辑您的 `/etc/ocserv/ocserv.conf` 配置文件：
+```bash
+nano /etc/ocserv/ocserv.conf
+```
+在文件末尾或合适位置添加以下一行配置项：
+```text
+user-profile = /etc/ocserv/profile.xml
+```
+
+### 3. 重启 ocserv 服务
+运行以下命令使配置在您的服务器上生效：
+```bash
+systemctl restart ocserv
+```
+此时，客户端只要首次成功连接其中任意一台服务器，就会自动下载并保存包含所有服务器节点的 `profile.xml`。下次打开 AnyConnect 时，下拉菜单中将自动显示所有已配置的服务器节点列表，实现无缝切换。
 
 ---
 *Developed & Optimized by SheepKeeperS & lgdglgc*
