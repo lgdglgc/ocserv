@@ -86,6 +86,10 @@ Download_ocserv(){
 		wget --no-check-certificate -O "${conf}" "https://raw.githubusercontent.com/lgdglgc/ocserv/master/other/ocserv.conf?t=$(date +%s)"
 		wget --no-check-certificate -O "/etc/ocserv/cn_routes.txt" "https://raw.githubusercontent.com/lgdglgc/ocserv88/master/other/cn_routes.txt?t=$(date +%s)"
 		[[ ! -s "${conf}" ]] && echo -e "${Error} ocserv 配置文件下载失败 !" && rm -rf "${conf_file}" && exit 1
+		# 确保配置目录与主要路由/配置文件权限正确，使 worker 进程可读
+		chmod 755 "${conf_file}"
+		chmod 644 "${conf}"
+		chmod 644 "/etc/ocserv/cn_routes.txt"
 	else
 		echo -e "${Error} ocserv 编译安装失败，请检查！" && exit 1
 	fi
@@ -104,6 +108,7 @@ Wants=network-online.target
 Type=forking
 PIDFile=/var/run/ocserv.pid
 ExecStart=/usr/local/sbin/ocserv -c /etc/ocserv/ocserv.conf
+ExecStartPost=-/sbin/iptables-restore /etc/iptables.up.rules
 ExecReload=/bin/kill -HUP $MAINPID
 KillMode=process
 Restart=on-failure
@@ -153,6 +158,10 @@ Generate_SSL(){
 				~/.acme.sh/acme.sh --installcert -d ${domain} --fullchainpath /etc/ocserv/ssl/server-cert.pem --keypath /etc/ocserv/ssl/server-key.pem --ecc
 				# 对于真实的公网证书，直接注释掉 ocserv.conf 里的 ca-cert 限制
 				sed -i 's/^ca-cert =/#ca-cert =/g' ${conf}
+				# 设置安全目录与文件权限，确保 worker 进程和 ssl 读取无权限报错
+				chmod 755 /etc/ocserv /etc/ocserv/ssl
+				chmod 644 /etc/ocserv/ssl/server-cert.pem 2>/dev/null
+				chmod 600 /etc/ocserv/ssl/server-key.pem 2>/dev/null
 				echo -e "${Info} 受信任证书配置完成！"
 				return 0
 			else
@@ -203,6 +212,10 @@ tls_www_server' > server.tmpl
 	mv ca-key.pem /etc/ocserv/ssl/ca-key.pem
 	mv server-cert.pem /etc/ocserv/ssl/server-cert.pem
 	mv server-key.pem /etc/ocserv/ssl/server-key.pem
+	# 设置安全目录与文件权限，确保 worker 进程和 ssl 读取无权限报错
+	chmod 755 /etc/ocserv /etc/ocserv/ssl
+	chmod 644 /etc/ocserv/ssl/ca-cert.pem /etc/ocserv/ssl/server-cert.pem 2>/dev/null
+	chmod 600 /etc/ocserv/ssl/ca-key.pem /etc/ocserv/ssl/server-key.pem 2>/dev/null
 	cd .. && rm -rf /tmp/ssl/
 }
 # 统一依赖包列表（Debian/Ubuntu 通用）
@@ -383,6 +396,7 @@ Set_Config(){
 	Set_username
 	Set_passwd
 	printf "%s\n%s\n" "${userpass}" "${userpass}" | ocpasswd -c ${passwd_file} ${username}
+	chmod 600 ${passwd_file}
 	Set_tcp_port
 	Set_udp_port
 	sed -i 's/tcp-port = '"$(echo ${tcp_port})"'/tcp-port = '"$(echo ${set_tcp_port})"'/g' ${conf}
@@ -423,6 +437,7 @@ Add_User(){
 	user_status=$(grep "^${username}:" "${passwd_file}")
 	[[ ! -z ${user_status} ]] && echo -e "${Error} 用户名已存在 ![ ${username} ]" && exit 1
 	printf "%s\n%s\n" "${userpass}" "${userpass}" | ocpasswd -c ${passwd_file} ${username}
+	chmod 600 ${passwd_file}
 	user_status=$(grep "^${username}:" "${passwd_file}")
 	if [[ ! -z ${user_status} ]]; then
 		echo -e "${Info} 账号添加成功 ![ ${username} ]"
