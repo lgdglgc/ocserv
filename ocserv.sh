@@ -4,17 +4,17 @@ export PATH
 #=================================================
 #	System Required: Debian/Ubuntu
 #	Description: ocserv AnyConnect
-#	Version: 1.4.2
+#	Version: 1.5.0
 #	Author: SheepKeeperS
 #	Blog: blog.kqsdw.com
 #=================================================
-sh_ver="1.4.2"
+sh_ver="1.5.0"
 file="/usr/local/sbin/ocserv"
 conf_file="/etc/ocserv"
 conf="/etc/ocserv/ocserv.conf"
 passwd_file="/etc/ocserv/ocpasswd"
 log_file="/tmp/ocserv.log"
-ocserv_ver="1.4.2"
+ocserv_ver="1.5.0"
 PID_FILE="/var/run/ocserv.pid"
 
 Green_font_prefix="\033[32m" && Red_font_prefix="\033[31m" && Green_background_prefix="\033[42;37m" && Red_background_prefix="\033[41;37m" && Font_color_suffix="\033[0m"
@@ -513,6 +513,11 @@ View_Config(){
 	else
 		echo -e "\n 客户端链接请填写 : ${Green_font_prefix}你的域名:${tcp_port}${Font_color_suffix} (或 ${ip}:${tcp_port})"
 	fi
+	echo -e "\n${Red_font_prefix}⚠️  【核心防卡顿】安全组放行提示：${Font_color_suffix}"
+	echo -e " 请务必确认已在云服务器控制台（安全组/防火墙）中开放以下规则，否则连接将极其卡顿："
+	echo -e " 1. ${Green_font_prefix}放行 TCP 端口: ${tcp_port}${Font_color_suffix} (用于控制通道连接)"
+	echo -e " 2. ${Green_font_prefix}放行 UDP 端口: ${udp_port}${Font_color_suffix} (用于 DTLS 高速传输，不开放网速极慢！)"
+	echo -e " 3. ${Green_font_prefix}放行 ICMP 协议${Font_color_suffix} (用于 MTU 自适应探测与测速，防止连接断流)"
 	echo && echo "==================================================="
 }
 View_Log(){
@@ -652,6 +657,7 @@ EOF
 		echo -e "${Info} 自动识别到出口网卡: ${Green_font_prefix}${Network_card}${Font_color_suffix}"
 	fi
 	iptables -t nat -A POSTROUTING -o ${Network_card} -j MASQUERADE
+	iptables -t mangle -A FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu
 	iptables-save > /etc/iptables.up.rules
 	mkdir -p /etc/network/if-pre-up.d
 	printf '#!/bin/bash\n/sbin/iptables-restore < /etc/iptables.up.rules\n' > /etc/network/if-pre-up.d/iptables

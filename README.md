@@ -1,12 +1,32 @@
 # ocserv-master (AnyConnect 一键极速部署脚本)
 
-本仓库提供 Cisco AnyConnect (ocserv) 的一键自动编译部署与全自动优化脚本，基于开源的 **ocserv 1.4.2** 最新版构建，完美支持高并发，并自带极为强大的路由分流系统。
+本仓库提供 Cisco AnyConnect (ocserv) 的一键自动编译部署与全自动优化脚本，基于开源的 **ocserv 1.5.0** 最新版构建，完美支持高并发，并自带极为强大的路由分流系统。
 
-> ⚠️ **版本架构提示**：1.4.2 版是专注于极致性能与严苛安全协议的纯血 AnyConnect 版本，**不再支持兼容 OpenVPN 客户端**。如果您有极强的 OpenVPN 客户端兼容需求，请使用我们的 **[ocserv88-main (1.2.4 稳定增强版)](https://github.com/lgdglgc/ocserv88)**。
+> ⚠️ **版本架构提示**：1.5.0 版是专注于极致性能与严苛安全协议的纯血 AnyConnect 版本，**不再支持兼容 OpenVPN 客户端**。如果您有极强的 OpenVPN 客户端兼容需求，请使用我们的 **[ocserv88-main (1.2.4 稳定增强版)](https://github.com/lgdglgc/ocserv88)**。
 
 ---
 
-## ✨ 核心亮点与优化 (v1.4.2)
+## 🔄 v1.5.0 版本新特性与安全修复
+
+基于最新的官方 **ocserv 1.5.0** (2026年6月发布) 版本构建，引入了多项关键的安全修复与配置增强：
+
+1. **核心安全漏洞修复 (强烈建议升级)**
+   - **缓冲区溢出修复**：修复了在非特权工作进程中由超长 `webvpncontext=` Cookie 引起的安全堆溢出漏洞 (Unauthenticated heap buffer overflow)。
+   - **MTU 协商修复**：修复了在 DTLS MTU 协商过程中，由于客户端广播超出范围的值可能引发的无符号整数下溢漏洞 (Unsigned integer underflow)。
+
+2. **配置与协议功能升级**
+   - **多 DNS/NBNS 服务器支持**：`ocserv.conf` 现在原生支持配置多个 DNS/NBNS 服务器以实现更好的解析备份。
+   - **全新配置项**：新增了 `split-dns` (分流 DNS 域名解析) 和 `custom-header` (自定义 HTTP 响应头) 配置支持。
+   - **可配置 Rekey 时间**：对会话重密钥 (Rekey) 时间提供了更弹性的可配置化支持。
+   - **已废弃特性清理**：不再支持旧版的 `local` 认证关键字。
+
+3. **系统健壮性与报错改进**
+   - **严格配置文件审计**：当指定的 `default-user-conf` 或 `default-group-conf` 文件无法打开时，服务端将主动拒绝会话 (Session Rejection) 以避免静默忽略带来的隐患。
+   - **Seccomp 沙箱容错**：在启用 `seccomp` 容器安全沙箱时，被禁止的系统调用现在会温和地返回错误码，而不再直接强制杀死 (Kill) 工作进程。
+
+---
+
+## ✨ 核心亮点与优化 (v1.5.0)
 
 1. **全新路由模式无缝切换内核**
    - 彻底摆脱手动修改路由规则的痛苦，脚本通过外科手术式精准替换内核，支持**一键在「全局代理」和「国内直连分流」之间无缝切换**。
@@ -41,7 +61,7 @@ wget -N --no-check-certificate https://raw.githubusercontent.com/lgdglgc/ocserv/
 运行脚本后，您将看到如下直观的控制台交互面板。只需输入对应数字即可实现全自动化管理：
 
 ```text
- ocserv 一键安装管理脚本 [v1.4.2]
+ ocserv 一键安装管理脚本 [v1.5.0]
   -- Update by SheepKeeperS --
   
  0. 升级脚本
@@ -83,7 +103,7 @@ wget -N --no-check-certificate https://raw.githubusercontent.com/lgdglgc/ocserv/
 
 ## 📱 客户端下载与连接指南
 
-此版本 (1.4.2) 专为 **Cisco AnyConnect** 及 **OpenConnect** 协议设计，拥有最为成熟的跨平台客户端生态。
+此版本 (1.5.0) 专为 **Cisco AnyConnect** 及 **OpenConnect** 协议设计，拥有最为成熟的跨平台客户端生态。
 
 ### 推荐客户端列表
 
